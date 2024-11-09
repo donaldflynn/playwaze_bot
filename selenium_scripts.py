@@ -75,3 +75,23 @@ def fetch_session_start_time(session_string: str):
             return start_datetime
         else:
             raise ValueError("Error finding date of session")
+
+def book_session(session_string: str):
+    with ChromeDriver() as driver:
+        _playwaze_login(driver)
+        _go_to_session_from_string(driver, session_string)
+
+        wait = WebDriverWait(driver, 10)
+
+        # book_button = driver.find_element("id", "attendButtona")
+        book_button = driver.find_element(By.XPATH, "//button[@id='attendButtona' and text()='Book']")
+        driver.execute_script("arguments[0].click();", book_button)
+
+        continue_button = wait.until(EC.element_to_be_clickable((By.ID, "dependant-booking")))
+        continue_button.click()
+
+        account_div = wait.until(EC.element_to_be_clickable((By.XPATH, f"//div[@class='select-account' and @accusername='{username}']")))
+        account_div.click()
+        
+        complete_button = wait.until(EC.element_to_be_clickable((By.ID, "session-book")))
+        complete_button.click()

@@ -5,6 +5,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from typing import Optional, NamedTuple
 import base64
+from dataclasses import dataclass
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = [
@@ -13,13 +14,30 @@ SCOPES = [
   "https://www.googleapis.com/auth/gmail.send"
 ]
 
-
-
-class Thread(NamedTuple):
+@dataclass
+class Thread():
   thread_id: str
   external_address: str
   subject: str
   message_ids: list[str]
+  
+  def to_dict(self):
+    return {
+      "thread_id": self.thread_id,
+      "external_address": self.external_address,
+      "subject": self.subject,
+      "message_ids": self.message_ids
+    }
+  
+  @staticmethod
+  def from_dict(dict):
+    return Thread(
+      thread_id=dict['thread_id'],
+      external_address=dict['external_address'],
+      subject=dict['subject'],
+      message_ids=dict['message_ids']
+    )
+
 
 
 def _get_gmail_auth():
@@ -118,9 +136,3 @@ def send_reply_to_thread(body: str, thread: Thread):
 
   thread.message_ids.append(message_id)
   return thread
-
-
-
-  print(f"Reply sent to thread ID {thread_id}, message ID {sent_message['id']}")
-
-  # Get Message-ID:
