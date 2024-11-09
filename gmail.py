@@ -1,77 +1,28 @@
 import os.path
-import base64
-import json
-import re
-import time
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-import logging
-import requests
-
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.modify']
-
-# def readEmails():
-#     """Shows basic usage of the Gmail API.
-#     Lists the user's Gmail labels.
-#     """
-#     creds = None
-#     # The file token.json stores the user's access and refresh tokens, and is
-#     # created automatically when the authorization flow completes for the first
-#     # time.
-#     if os.path.exists('token.json'):
-#         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-#     # If there are no (valid) credentials available, let the user log in.
-#     if not creds or not creds.valid:
-#         if creds and creds.expired and creds.refresh_token:
-#             creds.refresh(Request())
-#         else:
-#             flow = InstalledAppFlow.from_client_secrets_file(               
-#                 # your creds file here. Please create json file as here https://cloud.google.com/docs/authentication/getting-started
-#                 'my_cred_file.json', SCOPES)
-#             creds = flow.run_local_server(port=0)
-#         # Save the credentials for the next run
-#         with open('token.json', 'w') as token:
-#             token.write(creds.to_json())
-#     try:
-#         # Call the Gmail API
-#         service = build('gmail', 'v1', credentials=creds)
-#         results = service.users().messages().list(userId='me', labelIds=['INBOX'], q="is:unread").execute()
-#         messages = results.get('messages',[]);
-#         if not messages:
-#             print('No new messages.')
-#         else:
-#             message_count = 0
-#             for message in messages:
-#                 msg = service.users().messages().get(userId='me', id=message['id']).execute()                
-#                 email_data = msg['payload']['headers']
-#                 for values in email_data:
-#                     name = values['name']
-#                     if name == 'From':
-#                         from_name= values['value']                
-#                         for part in msg['payload']['parts']:
-#                             try:
-#                                 data = part['body']["data"]
-#                                 byte_code = base64.urlsafe_b64decode(data)
-
-#                                 text = byte_code.decode("utf-8")
-#                                 print ("This is the message: "+ str(text))
-
-#                                 # mark the message as read (optional)
-#                                 msg  = service.users().messages().modify(userId='me', id=message['id'], body={'removeLabelIds': ['UNREAD']}).execute()                                                       
-#                             except BaseException as error:
-#                                 pass                            
-#     except Exception as error:
-#         print(f'An error occurred: {error}')
-
-# readEmails()
+from typing import Optional, NamedTuple
+import base64
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly", 'https://www.googleapis.com/auth/gmail.modify']
+SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  'https://www.googleapis.com/auth/gmail.modify', 
+  "https://www.googleapis.com/auth/gmail.send"
+]
 
 
-def get_gmail_auth():
+
+class Thread(NamedTuple):
+  thread_id: str
+  external_address: str
+  subject: str
+  message_ids: list[str]
+
+
+def _get_gmail_auth():
   """Shows basic usage of the Gmail API.
   Lists the user's Gmail labels.
   """
@@ -95,39 +46,81 @@ def get_gmail_auth():
       token.write(creds.to_json())
   return creds
 
-def get_first_unread_email_subject(creds):
-  try:
-    # Call the Gmail API
-    service = build('gmail', 'v1', credentials=creds)  # Assuming 'creds' is your authenticated credentials
+def get_unread_email_thread() -> Optional[Thread]:
+  creds = _get_gmail_auth()
+  # Call the Gmail API
+  service = build('gmail', 'v1', credentials=creds)  # Assuming 'creds' is your authenticated credentials
 
-    # Get the first unread message
-    results = service.users().messages().list(userId='me', labelIds=['INBOX'], q="is:unread").execute()
-    messages = results.get('messages', [])
-    if not messages:
-      print('No new messages.')
-      return
+  # Get the first unread message
+  results = service.users().messages().list(userId='me', labelIds=['INBOX'], q="is:unread").execute()
+  messages = results.get('messages', [])
 
-    message_id = messages[0]['id']
+  if not messages:
+    print('No new messages.')
+    return
 
-    # Get the message details
-    msg = service.users().messages().get(userId='me', id=message_id).execute()
+  message_id = messages[0]['id']  
 
-    # Extract the subject from the message headers
-    for header in msg['payload']['headers']:
-      if header['name'] == 'Subject':
-        subject = header['value']
-        break
+  # Get the message details
+  msg = service.users().messages().get(userId='me', id=message_id).execute()
 
-    print(f"Subject of the first unread email: {subject}")
+  headers = {header['name']: header['value'] for header in msg['payload']['headers']}
+  
+  thread = Thread(
+    subject = headers.get('Subject'),
+    thread_id = msg['threadId'],
+    external_address = headers.get('From'),
+    message_ids=[headers.get('Message-ID')]
+  )
 
-    # Mark the message as read
-    service.users().messages().modify(userId='me', id=message_id, body={'removeLabelIds': ['UNREAD']}).execute()
+  # Mark the message as read
+  service.users().messages().modify(userId='me', id=message_id, body={'removeLabelIds': ['UNREAD']}).execute()
+  print(f"Found new thread: {thread.subject}")
 
-  except Exception as error:
-    print(f'An error occurred: {error}')
+  return thread
 
-if __name__ == "__main__":
-  creds = get_gmail_auth()
-  while True:
-    get_first_unread_email_subject(creds)
-    time.sleep(5)
+def send_reply_to_thread(body: str, thread: Thread):
+  creds = _get_gmail_auth()
+
+  subject = f"Re: {thread.subject}"
+  in_reply_to = thread.message_ids[-1]
+  thread_id = thread.thread_id
+  references = " ".join(thread.message_ids)
+
+  service = build('gmail', 'v1', credentials=creds)
+
+  # Create the message with required headers
+  message_text = (
+        f"To: {thread.external_address}\n"
+        f"Subject: {subject}\n"
+        f"In-Reply-To: {in_reply_to}\n"
+        f"References: {references}\n\n{body}"
+    )
+
+  # Encode the message
+  message = {
+      'raw': base64.urlsafe_b64encode(message_text.encode("utf-8")).decode("utf-8"),
+      'threadId': thread_id  # Include the thread ID to send within the same thread
+  }
+
+  # Send the message
+  sent_message = service.users().messages().send(userId="me", body=message).execute()
+  sent_message_id = sent_message['id']
+  print("Sending reply..")
+
+  # Retrieve the sent message to get the Message-ID header
+  full_message = service.users().messages().get(userId="me", id=sent_message_id, format="metadata").execute()
+  print(full_message['payload']['headers'])
+
+  headers = {header['name']: header['value'] for header in full_message['payload']['headers']}
+  message_id = headers.get('Message-Id')
+  print(message_id)
+
+  thread.message_ids.append(message_id)
+  return thread
+
+
+
+  print(f"Reply sent to thread ID {thread_id}, message ID {sent_message['id']}")
+
+  # Get Message-ID:
