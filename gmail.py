@@ -3,7 +3,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from typing import Optional, NamedTuple
+from typing import Optional
 import base64
 from dataclasses import dataclass
 
@@ -97,15 +97,29 @@ def get_unread_email_thread() -> Optional[Thread]:
 
   return thread
 
-def send_reply_to_thread(body: str, thread: Thread):
+def _send_email(encoded_body) -> str:
+  """Sends email, returning Message-Id"""
   creds = _get_gmail_auth()
+  service = build('gmail', 'v1', credentials=creds)
 
+  # Send the message
+  sent_message = service.users().messages().send(userId="me", body=encoded_body).execute()
+  sent_message_id = sent_message['id']
+  print("Sending email..")
+
+  # Retrieve the sent message to get the Message-ID header
+  full_message = service.users().messages().get(userId="me", id=sent_message_id, format="metadata").execute()
+  print(full_message['payload']['headers'])
+
+  headers = {header['name']: header['value'] for header in full_message['payload']['headers']}
+  return headers.get('Message-Id')
+
+def send_reply_to_thread(body: str, thread: Thread):
+  
   subject = f"Re: {thread.subject}"
   in_reply_to = thread.message_ids[-1]
   thread_id = thread.thread_id
   references = " ".join(thread.message_ids)
-
-  service = build('gmail', 'v1', credentials=creds)
 
   # Create the message with required headers
   message_text = (
@@ -120,19 +134,19 @@ def send_reply_to_thread(body: str, thread: Thread):
       'raw': base64.urlsafe_b64encode(message_text.encode("utf-8")).decode("utf-8"),
       'threadId': thread_id  # Include the thread ID to send within the same thread
   }
-
-  # Send the message
-  sent_message = service.users().messages().send(userId="me", body=message).execute()
-  sent_message_id = sent_message['id']
-  print("Sending reply..")
-
-  # Retrieve the sent message to get the Message-ID header
-  full_message = service.users().messages().get(userId="me", id=sent_message_id, format="metadata").execute()
-  print(full_message['payload']['headers'])
-
-  headers = {header['name']: header['value'] for header in full_message['payload']['headers']}
-  message_id = headers.get('Message-Id')
-  print(message_id)
-
+  message_id = _send_email(encoded_body=message)
   thread.message_ids.append(message_id)
   return thread
+
+def send_outgoing_email(subject: str, body: str, address: str):
+  message_text = (
+        f"To: {address}\n"
+        f"Subject: {subject}\n\n{body}"
+    )
+  
+   # Encode the message
+  message = {
+      'raw': base64.urlsafe_b64encode(message_text.encode("utf-8")).decode("utf-8"),
+  }
+
+  _send_email(encoded_body=message)

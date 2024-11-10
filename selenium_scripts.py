@@ -95,3 +95,17 @@ def book_session(session_string: str):
         
         complete_button = wait.until(EC.element_to_be_clickable((By.ID, "session-book")))
         complete_button.click()
+
+def get_sessions_list():
+    with ChromeDriver() as driver:
+        _playwaze_login(driver)
+        # Go to sessions
+        driver.get("https://www.playwaze.com/oxford-university-badminton-club/e5vt8osgi3erh/Community-Details")
+
+        # Filter to clubnight only
+        marketplace_div = driver.find_element(By.XPATH, "//div[@class='marketplace-filter-type' and @data-type='activity']")
+        marketplace_div.click()
+
+        time.sleep(1)
+        sessions_elements = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
+        return [s.text for s in sessions_elements]

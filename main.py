@@ -4,10 +4,13 @@ from selenium_scripts import fetch_session_start_time, book_session
 import time
 from datetime import datetime, timedelta
 from scheduler import Scheduler, Job, JobEnum
+from tinydb import TinyDB
+from variables import TINY_DB_PATH
 
 class Process:
-    def __init__(self, db_path):
-        self.scheduler = Scheduler(db_path)
+    def __init__(self, db):
+        self.db = db
+        self.scheduler = Scheduler(db.table('jobs'))
     
     def main(self):
         self.scheduler.run_jobs_due()
@@ -32,7 +35,8 @@ class Process:
             pass
 
 if __name__ == "__main__":
-    process = Process(db_path='tinydb.json')
+    db = TinyDB(TINY_DB_PATH)
+    process = Process(db=db)
     while True:
         process.main()
         time.sleep(5)

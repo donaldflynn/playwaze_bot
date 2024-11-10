@@ -1,15 +1,16 @@
-from tinydb import TinyDB, Query
+from tinydb import Query
 from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass
-from jobs import book_session_job
-from gmail import Thread
+from jobs import book_session_job, check_for_new_sessions_job
 
 class JobEnum(Enum):
     BookSession = 1
+    CheckForNewSessions = 2
 
 JobFuncLookup = {
-    JobEnum.BookSession: book_session_job
+    JobEnum.BookSession: book_session_job,
+    JobEnum.CheckForNewSessions: check_for_new_sessions_job,
 }
 
 @dataclass
@@ -39,23 +40,23 @@ class Job:
 
 
 class Scheduler:
-    def __init__(self, path_to_json):
-        self.db = TinyDB(path_to_json)
+    def __init__(self, jobs_table):
+        self.jobs_table = jobs_table
     
     def schedule_job(self, job: Job):
-        self.db.insert(job.to_dict())
+        self.jobs_table.insert(job.to_dict())
     
     def run_jobs_due(self):
         time_now = datetime.now()
         JobsData = Query()
-        jobs_list = self.db.search(JobsData.time < time_now.timestamp())
-        if len(jobs_list) != 0:
-            for job_dict in jobs_list:
-                current_job = Job.from_dict(job_dict)
-                try:
-                    # Error handling should be done inside the job. 
-                    # Pass out of any errors to delete the job and avoid getting stuck in a loop
+        jobs_list = self.jobs_table.search(JobsData.time < time_now.timestamp())
+        # Error handling should be done inside the job. 
+        # Pass out of any errors to delete the jobs and avoid getting stuck in a loop
+        try:
+            if len(jobs_list) != 0:
+                for job_dict in jobs_list:
+                    current_job = Job.from_dict(job_dict)
                     current_job.execute()
-                except:
-                    pass
-        self.db.remove(JobsData.time < time_now.timestamp())
+        except:
+            pass
+        self.jobs_table.remove(JobsData.time < time_now.timestamp())
