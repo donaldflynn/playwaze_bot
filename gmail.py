@@ -1,18 +1,8 @@
-import os.path
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from typing import Optional
 import base64
 from dataclasses import dataclass
-
-# If modifying these scopes, delete the file token.json.
-SCOPES = [
-  "https://www.googleapis.com/auth/gmail.readonly",
-  'https://www.googleapis.com/auth/gmail.modify', 
-  "https://www.googleapis.com/auth/gmail.send"
-]
+from run_gmail_auth import get_gmail_auth
 
 @dataclass
 class Thread():
@@ -38,34 +28,8 @@ class Thread():
       message_ids=dict['message_ids']
     )
 
-
-
-def _get_gmail_auth():
-  """Shows basic usage of the Gmail API.
-  Lists the user's Gmail labels.
-  """
-  creds = None
-  # The file token.json stores the user's access and refresh tokens, and is
-  # created automatically when the authorization flow completes for the first
-  # time.
-  if os.path.exists("token.json"):
-    creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-  # If there are no (valid) credentials available, let the user log in.
-  if not creds or not creds.valid:
-    if creds and creds.expired and creds.refresh_token:
-      creds.refresh(Request())
-    else:
-      flow = InstalledAppFlow.from_client_secrets_file(
-          "credentials.json", SCOPES
-      )
-      creds = flow.run_local_server(port=0)
-    # Save the credentials for the next run
-    with open("token.json", "w") as token:
-      token.write(creds.to_json())
-  return creds
-
 def get_unread_email_thread() -> Optional[Thread]:
-  creds = _get_gmail_auth()
+  creds = get_gmail_auth()
   # Call the Gmail API
   service = build('gmail', 'v1', credentials=creds)  # Assuming 'creds' is your authenticated credentials
 
@@ -99,7 +63,7 @@ def get_unread_email_thread() -> Optional[Thread]:
 
 def _send_email(encoded_body) -> str:
   """Sends email, returning Message-Id"""
-  creds = _get_gmail_auth()
+  creds = get_gmail_auth()
   service = build('gmail', 'v1', credentials=creds)
 
   # Send the message

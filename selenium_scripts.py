@@ -1,17 +1,20 @@
 from selenium import webdriver
 import time
-from credentials import username, password
+from data.credentials import username, password
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from datetime import datetime
 
 import re
 
+HUB_URL = "http://selenium-hub:4444/wd/hub"
+
 class ChromeDriver:
     def __init__(self):
-        self.driver = webdriver.Chrome()
+        self.driver = webdriver.Remote(command_executor=HUB_URL, desired_capabilities=DesiredCapabilities.CHROME)
     def __enter__(self):
         return self.driver
     def __exit__(self, type, value, tb):

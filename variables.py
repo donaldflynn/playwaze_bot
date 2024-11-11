@@ -1,1 +1,1 @@
-TINY_DB_PATH = "tinydb.json"
+TINY_DB_PATH = "data/tinydb.json"

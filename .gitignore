@@ -1,5 +1,4 @@
-credentials.py
-credentials.json
-token.json
 __pycache__/*
-tinydb.json
+data/*
+!data/credentials.example.py
+!data/__init__.py
