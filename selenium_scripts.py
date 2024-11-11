@@ -40,14 +40,20 @@ def _go_to_session_from_string(driver, session_string):
     marketplace_div = driver.find_element(By.XPATH, "//div[@class='marketplace-filter-type' and @data-type='activity']")
     marketplace_div.click()
 
-    time.sleep(1)
-    sessions = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
-    matching_elements = [s for s in sessions if session_string in s.text]
-    if len(matching_elements) != 1:
-        raise ValueError(f"Expected single session matching {session_string}. Found {[e.text for e in matching_elements]}")
-    session_button = matching_elements[0]
-    session_button.click()
-    time.sleep(1)
+    matching_session_button = _look_for_matching_session(driver, session_string)
+    matching_session_button.click()
+
+def _look_for_matching_session(driver, session_string):
+    # The page may take a while to load. Look for up to NUM_ATTEMPTS seconds before giving up.
+    NUM_ATTEMPTS = 10
+    for i in range(NUM_ATTEMPTS):
+        sessions = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
+        matching_elements = [s for s in sessions if session_string in s.text]
+        if len(matching_elements) != 1:
+            time.sleep(1)
+            continue
+        return matching_elements[0]
+    raise ValueError(f"Expected single session matching {session_string}. Found {[e.text for e in matching_elements]}")
 
 def fetch_session_start_time(session_string: str):
     with ChromeDriver() as driver:
@@ -95,17 +101,3 @@ def book_session(session_string: str):
         
         complete_button = wait.until(EC.element_to_be_clickable((By.ID, "session-book")))
         complete_button.click()
-
-def get_sessions_list():
-    with ChromeDriver() as driver:
-        _playwaze_login(driver)
-        # Go to sessions
-        driver.get("https://www.playwaze.com/oxford-university-badminton-club/e5vt8osgi3erh/Community-Details")
-
-        # Filter to clubnight only
-        marketplace_div = driver.find_element(By.XPATH, "//div[@class='marketplace-filter-type' and @data-type='activity']")
-        marketplace_div.click()
-
-        time.sleep(1)
-        sessions_elements = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
-        return [s.text for s in sessions_elements if s.text != '']
