@@ -108,4 +108,4 @@ def get_sessions_list():
 
         time.sleep(1)
         sessions_elements = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
-        return [s.text for s in sessions_elements]
+        return [s.text for s in sessions_elements if s.text != '']

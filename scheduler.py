@@ -1,8 +1,9 @@
-from tinydb import Query
+from tinydb import Query, TinyDB
 from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass
 from jobs import book_session_job, check_for_new_sessions_job
+from variables import TINY_DB_PATH
 
 class JobEnum(Enum):
     BookSession = 1
@@ -38,15 +39,24 @@ class Job:
         func = JobFuncLookup[self.job_enum]
         func(self.kwargs)
 
+# Recurring jobs, in the format: JobEnum, (approx) seconds between execution
+RECURRING_JOBS = [
+    (JobEnum.CheckForNewSessions, 1800)
+]
 
 class Scheduler:
-    def __init__(self, jobs_table):
+    def __init__(self, jobs_table, recurring_job_table):
         self.jobs_table = jobs_table
+        self.recurring_job_table = recurring_job_table
     
     def schedule_job(self, job: Job):
         self.jobs_table.insert(job.to_dict())
     
     def run_jobs_due(self):
+        self._run_oneshot_jobs_due()
+        # self._run_recurring_jobs_due()
+    
+    def _run_oneshot_jobs_due(self):
         time_now = datetime.now()
         JobsData = Query()
         jobs_list = self.jobs_table.search(JobsData.time < time_now.timestamp())
@@ -60,3 +70,25 @@ class Scheduler:
         except:
             pass
         self.jobs_table.remove(JobsData.time < time_now.timestamp())
+    
+    # Currently unused
+    def _run_recurring_jobs_due(self):
+        for r_job in RECURRING_JOBS:
+            RJob = Query()
+            rjob_entry = self.recurring_job_table.get(RJob.job_enum)
+            time_now = datetime.now()
+            if (rjob_entry is None or 
+                (time_now - datetime.fromtimestamp(rjob_entry['last_executed'])).total_seconds() > r_job[1]):
+                func = JobFuncLookup[r_job[0]]
+                try:
+                    func()
+                except:
+                    pass
+                if rjob_entry is not None:
+                    self.recurring_job_table.update({'last_executed': time_now.timestamp()}, RJob.job_enum == r_job[0].value)
+                else:
+                    self.recurring_job_table.insert({'job_enum': r_job[0].value,'last_executed': time_now.timestamp()})
+
+db = TinyDB(TINY_DB_PATH)
+scheduler = Scheduler(jobs_table=db.table('jobs'), recurring_job_table=db.table('recurring_jobs'))
+scheduler.run_jobs_due()
