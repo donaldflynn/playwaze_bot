@@ -1,33 +1,29 @@
+networks:
+  selenium-network:
+    driver: bridge
+
 services:
-  selenium-hub:
-    image: selenium/hub:latest
-    container_name: selenium-hub
-    ports:
-      - "4444:4444"
-    restart: always
-
   chrome:
-    image: selenium/node-chrome:latest
+    image: selenium/standalone-chrome:latest
     container_name: chrome
-    environment:
-      - HUB_HOST=selenium-hub
-      - SE_EVENT_BUS_HOST=selenium-hub
-      - HUB_PORT=4444
-    depends_on:
-      - selenium-hub
+    ports:
+      - "4444:4444"  # Expose the WebDriver API
+    volumes:
+      - /dev/shm:/dev/shm  # To avoid "no space left on device" errors with Chrome
+    networks:
+      - selenium-network
     restart: always
-
 
   app:
     build: .
     container_name: app
     environment:
-      - HUB_HOST=selenium-hub
+      - WEBDRIVER_URL=http://chrome:4444/wd/hub  # Connect to the standalone Chrome WebDriver
+      - PYTHONUNBUFFERED=1
     depends_on:
-      - selenium-hub
       - chrome
-    links:
-      - selenium-hub
     volumes:
-      - ./data:/app/data  # Mount the /data folder
-    restart: always  # Auto-restart if the container crashes
+      - ./data:/app/data
+    networks:
+      - selenium-network
+    restart: always

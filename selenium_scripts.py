@@ -5,20 +5,28 @@ from data.credentials import username, password
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.chrome.options import Options
+
 from datetime import datetime
 
 import re
 
-HUB_URL = "http://selenium-hub:4444/wd/hub"
+HUB_URL = 'http://chrome:4444/wd/hub'
 
 class ChromeDriver:
     def __init__(self):
-        self.driver = webdriver.Remote(command_executor=HUB_URL, desired_capabilities=DesiredCapabilities.CHROME)
+        
+        # Initialize Chrome options
+        options = Options()
+        options.add_argument('--headless')  # Optional: run Chrome in headless mode
+        options.add_argument('--no-sandbox')  # Optional: required for certain environments
+        options.add_argument('--disable-dev-shm-usage')  # Optional: to prevent out-of-memory errors in Docker
+
+        self.driver = webdriver.Remote(command_executor=HUB_URL, options=options)
     def __enter__(self):
         return self.driver
     def __exit__(self, type, value, tb):
-        driver = self.driver.close()
+        driver = self.driver.quit()
 
 def _playwaze_login(driver):
     # Go to login page
@@ -43,19 +51,23 @@ def _go_to_session_from_string(driver, session_string):
     marketplace_div = driver.find_element(By.XPATH, "//div[@class='marketplace-filter-type' and @data-type='activity']")
     marketplace_div.click()
 
-    matching_session_button = _look_for_matching_session(driver, session_string)
-    matching_session_button.click()
+    _look_for_and_click_matching_session(driver, session_string)
+    
 
-def _look_for_matching_session(driver, session_string):
+def _look_for_and_click_matching_session(driver, session_string):
     # The page may take a while to load. Look for up to NUM_ATTEMPTS seconds before giving up.
     NUM_ATTEMPTS = 10
     for i in range(NUM_ATTEMPTS):
-        sessions = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
-        matching_elements = [s for s in sessions if session_string in s.text]
-        if len(matching_elements) != 1:
-            time.sleep(1)
-            continue
-        return matching_elements[0]
+        try:
+            sessions = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
+            matching_elements = [s for s in sessions if session_string in s.text]
+            if len(matching_elements) != 1:
+                time.sleep(1)
+                continue
+            matching_elements[0].click()
+            return
+        except:
+            pass
     raise ValueError(f"Expected single session matching {session_string}. Found {[e.text for e in matching_elements]}")
 
 def fetch_session_start_time(session_string: str):
