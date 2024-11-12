@@ -3,13 +3,13 @@ networks:
     driver: bridge
 
 services:
-  chrome:
-    image: selenium/standalone-chrome:latest
-    container_name: chrome
+  firefox:
+    image: selenium/standalone-firefox:latest
+    container_name: firefox
     ports:
       - "4444:4444"  # Expose the WebDriver API
     volumes:
-      - /dev/shm:/dev/shm  # To avoid "no space left on device" errors with Chrome
+      - /dev/shm:/dev/shm  # To avoid "no space left on device" errors with Firefox
     networks:
       - selenium-network
     restart: always
@@ -18,10 +18,10 @@ services:
     build: .
     container_name: app
     environment:
-      - WEBDRIVER_URL=http://chrome:4444/wd/hub  # Connect to the standalone Chrome WebDriver
+      - WEBDRIVER_URL=http://firefox:4444/wd/hub  # Connect to the standalone Firefox WebDriver
       - PYTHONUNBUFFERED=1
     depends_on:
-      - chrome
+      - firefox
     volumes:
       - ./data:/app/data
     networks:

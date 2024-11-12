@@ -5,20 +5,20 @@ from data.credentials import username, password
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options
 
 from datetime import datetime
 
 import re
 
-HUB_URL = 'http://chrome:4444/wd/hub'
+HUB_URL = 'http://firefox:4444/wd/hub'
 
-class ChromeDriver:
+class FirefoxDriver:
     def __init__(self):
         
-        # Initialize Chrome options
+        # Initialize Firefox options
         options = Options()
-        options.add_argument('--headless')  # Optional: run Chrome in headless mode
+        options.add_argument('--headless')  # Optional: run Firefox in headless mode
         options.add_argument('--no-sandbox')  # Optional: required for certain environments
         options.add_argument('--disable-dev-shm-usage')  # Optional: to prevent out-of-memory errors in Docker
 
@@ -71,7 +71,7 @@ def _look_for_and_click_matching_session(driver, session_string):
     raise ValueError(f"Expected single session matching {session_string}. Found {[e.text for e in matching_elements]}")
 
 def fetch_session_start_time(session_string: str):
-    with ChromeDriver() as driver:
+    with FirefoxDriver() as driver:
         _playwaze_login(driver)
         _go_to_session_from_string(driver, session_string)
         time_div = driver.find_element(By.XPATH, "//i[@class='far fa-calendar-alt']/ancestor::div")
@@ -98,7 +98,7 @@ def fetch_session_start_time(session_string: str):
             raise ValueError("Error finding date of session")
 
 def book_session(session_string: str):
-    with ChromeDriver() as driver:
+    with FirefoxDriver() as driver:
         _playwaze_login(driver)
         _go_to_session_from_string(driver, session_string)
 
