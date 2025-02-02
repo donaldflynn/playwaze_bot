@@ -1,9 +1,8 @@
-from tinydb import Query, TinyDB
+from tinydb import Query
 from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass
 from jobs import book_session_job
-from variables import TINY_DB_PATH
 
 class JobEnum(Enum):
     BookSession = 1
@@ -16,12 +15,14 @@ JobFuncLookup = {
 class Job:
     job_enum: JobEnum
     time: datetime
+    priority: int
     kwargs: dict
 
     def to_dict(self):
         return {
             "job_enum": self.job_enum.value,
             "time": self.time.timestamp(),
+            "priority": self.priority,
             "kwargs": self.kwargs,
         }
     
@@ -30,6 +31,7 @@ class Job:
         return Job(
             job_enum=JobEnum(dict['job_enum']),
             time=datetime.fromtimestamp(dict['time']),
+            priority=dict['priority'],
             kwargs=dict['kwargs']
         )
 
@@ -55,6 +57,7 @@ class Scheduler:
         # Pass out of any errors to delete the jobs and avoid getting stuck in a loop
         try:
             if len(jobs_list) != 0:
+                jobs_list = sorted(jobs_list, key=lambda x: x['priority'], reverse=True)
                 for job_dict in jobs_list:
                     current_job = Job.from_dict(job_dict)
                     current_job.execute()

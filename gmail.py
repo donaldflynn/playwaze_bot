@@ -9,6 +9,7 @@ class Thread():
   thread_id: str
   external_address: str
   subject: str
+  initial_body: str
   message_ids: list[str]
   
   def to_dict(self):
@@ -16,7 +17,8 @@ class Thread():
       "thread_id": self.thread_id,
       "external_address": self.external_address,
       "subject": self.subject,
-      "message_ids": self.message_ids
+      "message_ids": self.message_ids,
+      "initial_body": self.initial_body
     }
   
   @staticmethod
@@ -25,8 +27,28 @@ class Thread():
       thread_id=dict['thread_id'],
       external_address=dict['external_address'],
       subject=dict['subject'],
-      message_ids=dict['message_ids']
+      message_ids=dict['message_ids'],
+      initial_body=dict['initial_body']
     )
+  
+def get_email_body(msg):
+    """Extract the body from a Gmail API message response, always returning a string."""
+    payload = msg['payload']
+
+    if 'parts' in payload:  # If the email is multipart
+        for part in payload['parts']:
+            if part['mimeType'] == 'text/plain':  # Prefer plain text
+                body_data = part['body'].get('data')
+                if body_data:
+                    return base64.urlsafe_b64decode(body_data).decode('utf-8')
+
+    else:  # If the email is a simple single-part message
+        body_data = payload['body'].get('data')
+        if body_data:
+            return base64.urlsafe_b64decode(body_data).decode('utf-8')
+
+    return ""  # Always return a string, even if no body is found
+
 
 def get_unread_email_thread() -> Optional[Thread]:
   creds = get_gmail_auth()
@@ -47,12 +69,14 @@ def get_unread_email_thread() -> Optional[Thread]:
   msg = service.users().messages().get(userId='me', id=message_id).execute()
 
   headers = {header['name']: header['value'] for header in msg['payload']['headers']}
+  initial_body = get_email_body(msg)
   
   thread = Thread(
     subject = headers.get('Subject'),
     thread_id = msg['threadId'],
     external_address = headers.get('From'),
-    message_ids=[headers.get('Message-ID')]
+    message_ids=[headers.get('Message-ID')],
+    initial_body=initial_body
   )
 
   # Mark the message as read

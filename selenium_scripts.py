@@ -1,6 +1,5 @@
 from selenium import webdriver
 import time
-from data.credentials import username, password
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -28,7 +27,7 @@ class FirefoxDriver:
     def __exit__(self, type, value, tb):
         driver = self.driver.quit()
 
-def _playwaze_login(driver):
+def _playwaze_login(driver, username, password):
     # Go to login page
     driver.get("https://www.playwaze.com/Login")
 
@@ -70,9 +69,9 @@ def _look_for_and_click_matching_session(driver, session_string):
             pass
     raise ValueError(f"Expected single session matching {session_string}. Found {[e.text for e in matching_elements]}")
 
-def fetch_session_start_time(session_string: str):
+def fetch_session_start_time(session_string: str, username: str, password: str):
     with FirefoxDriver() as driver:
-        _playwaze_login(driver)
+        _playwaze_login(driver, username, password)
         _go_to_session_from_string(driver, session_string)
         time_div = driver.find_element(By.XPATH, "//i[@class='far fa-calendar-alt']/ancestor::div")
         # Get the text inside the div
@@ -97,9 +96,9 @@ def fetch_session_start_time(session_string: str):
         else:
             raise ValueError("Error finding date of session")
 
-def book_session(session_string: str):
+def book_session(session_string: str, username: str, password: str):
     with FirefoxDriver() as driver:
-        _playwaze_login(driver)
+        _playwaze_login(driver, username, password)
         _go_to_session_from_string(driver, session_string)
 
         wait = WebDriverWait(driver, 10)
