@@ -23,10 +23,10 @@ class Process:
             start_time = fetch_session_start_time(thread.subject)
             booking_time = start_time - timedelta(days=3)
             if booking_time < datetime.now():
-                book_session(session_string=thread.subject)
+                book_session(session_string=thread.subject, booking_time=booking_time.timestamp())
             else:
-                schedule_time = booking_time - 30
-                job = Job(JobEnum.BookSession, schedule_time, {**thread.to_dict(), "booking_time": booking_time})
+                schedule_time = booking_time - timedelta(seconds=30)
+                job = Job(JobEnum.BookSession, schedule_time, {**thread.to_dict(), "booking_time": booking_time.timestamp()})
                 self.scheduler.schedule_job(job)
                 send_reply_to_thread(f"Session planned to be booked at {schedule_time}", thread)
 
