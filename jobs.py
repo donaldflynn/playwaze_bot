@@ -4,11 +4,11 @@ from variables import TINY_DB_PATH
 from tinydb import TinyDB
 
 def book_session_job(
-    thread_dict: dict
+    booking_time, **kwargs
 ):
-    thread = Thread.from_dict(thread_dict)
+    thread = Thread.from_dict(kwargs)
     try:
-        book_session(thread.subject)
+        book_session(thread.subject, booking_time)
         send_reply_to_thread("Success", thread)
     except Exception as e:
         send_reply_to_thread(f"Error: {repr(e)}", thread)

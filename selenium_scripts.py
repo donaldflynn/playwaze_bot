@@ -97,15 +97,27 @@ def fetch_session_start_time(session_string: str):
         else:
             raise ValueError("Error finding date of session")
 
-def book_session(session_string: str):
+
+def _get_book_button(driver, booking_time):
+    wait_time = max(min(booking_time + 0.5 - time.time(), 120), 0)
+    time.sleep(wait_time)
+    if wait_time > 0:
+        driver.refresh()
+    return WebDriverWait(driver, 10).until(EC.presence_of_element_located(
+            (By.XPATH, "//button[@id='attendButtona' and text()='Book']")
+        ))
+
+
+def book_session(session_string: str, booking_time: float):
     with FirefoxDriver() as driver:
+    # with webdriver.Chrome() as driver:
+
         _playwaze_login(driver)
         _go_to_session_from_string(driver, session_string)
 
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 5)
 
-        # book_button = driver.find_element("id", "attendButtona")
-        book_button = driver.find_element(By.XPATH, "//button[@id='attendButtona' and text()='Book']")
+        book_button = _get_book_button(driver, booking_time)
         driver.execute_script("arguments[0].click();", book_button)
 
         continue_button = wait.until(EC.element_to_be_clickable((By.ID, "dependant-booking")))
@@ -116,3 +128,6 @@ def book_session(session_string: str):
         
         complete_button = wait.until(EC.element_to_be_clickable((By.ID, "session-book")))
         complete_button.click()
+
+# if __name__ == "__main__":
+#     book_session("Fri 28/2 12", 1740513261.2039702)

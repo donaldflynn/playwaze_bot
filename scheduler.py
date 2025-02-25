@@ -16,7 +16,7 @@ JobFuncLookup = {
 class Job:
     job_enum: JobEnum
     time: datetime
-    kwargs: dict
+    kwargs: dict[str, any]
 
     def to_dict(self):
         return {
@@ -26,16 +26,16 @@ class Job:
         }
     
     @staticmethod
-    def from_dict(dict):
+    def from_dict(data):
         return Job(
-            job_enum=JobEnum(dict['job_enum']),
-            time=datetime.fromtimestamp(dict['time']),
-            kwargs=dict['kwargs']
+            job_enum=JobEnum(data['job_enum']),
+            time=datetime.fromtimestamp(data['time']),
+            kwargs=data['kwargs']
         )
 
     def execute(self):
         func = JobFuncLookup[self.job_enum]
-        func(self.kwargs)
+        func(job_time = self.time, **self.kwargs)
 
 class Scheduler:
     def __init__(self, jobs_table):

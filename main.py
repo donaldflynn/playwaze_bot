@@ -25,9 +25,10 @@ class Process:
             if booking_time < datetime.now():
                 book_session(session_string=thread.subject)
             else:
-                job = Job(JobEnum.BookSession, booking_time, thread.to_dict())
+                schedule_time = booking_time - 30
+                job = Job(JobEnum.BookSession, schedule_time, {**thread.to_dict(), "booking_time": booking_time})
                 self.scheduler.schedule_job(job)
-                send_reply_to_thread(f"Session planned to be booked at {booking_time}", thread)
+                send_reply_to_thread(f"Session planned to be booked at {schedule_time}", thread)
 
         except ValueError as e:
             print(f"Failed to handle email: {e}")
