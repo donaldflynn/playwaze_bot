@@ -25,7 +25,7 @@ class Process:
             if booking_time < datetime.now():
                 book_session(session_string=thread.subject, booking_time=booking_time.timestamp())
             else:
-                schedule_time = booking_time - timedelta(seconds=30)
+                schedule_time = booking_time - timedelta(seconds=60)
                 job = Job(JobEnum.BookSession, schedule_time, {**thread.to_dict(), "booking_time": booking_time.timestamp()})
                 self.scheduler.schedule_job(job)
                 send_reply_to_thread(f"Session planned to be booked at {schedule_time}", thread)
