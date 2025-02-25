@@ -10,11 +10,11 @@ class CredentialsManager:
         if "password" in body.lower():
             match = re.search(r'["\'](.*?)["\']', body) # Extract text inside quotation marks (single or double)
             new_password = match.group(1) if match else None
-        if new_password is not None:
-            CredsData = Query()
-            self.creds_table.remove(CredsData.email == email_address)
-            self.creds_table.insert({"email": email_address, "password": new_password})
-            return True
+            if new_password is not None:
+                CredsData = Query()
+                self.creds_table.remove(CredsData.email == email_address)
+                self.creds_table.insert({"email": email_address, "password": new_password})
+                return True
         return False
     
     def get_credentials_from_email(self, email) -> tuple[str, str]:
@@ -24,8 +24,8 @@ class CredentialsManager:
                 return account['username'], account['password']
         # Secondly check if account is stored in database:
         CredsData = Query()
-        matches = self.jobs_table.search(CredsData.email == email)
-        if len(matches >= 1):
+        matches = self.creds_table.search(CredsData.email == email)
+        if len(matches) >= 1:
             return email, matches[0]['password']
         else:
             raise ValueError('No Password for this account found. To register a password send an email with - password:"[my_password_here]" - in the body. Send the email from the address registered to your playwaze account.')
