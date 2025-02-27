@@ -6,6 +6,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
+from selenium.common.exceptions import TimeoutException
+
 
 from datetime import datetime
 
@@ -103,9 +105,15 @@ def _get_book_button(driver, booking_time):
     time.sleep(wait_time)
     if wait_time > 0:
         driver.refresh()
-    return WebDriverWait(driver, 10).until(EC.presence_of_element_located(
-            (By.XPATH, "//button[@id='attendButtona' and text()='Book']")
-        ))
+    for _ in range(5):
+        try:
+            return WebDriverWait(driver, 3).until(EC.presence_of_element_located(
+                (By.XPATH, "//button[@id='attendButtona' and text()='Book']")
+            ))
+        except TimeoutException:
+            driver.refresh()
+    raise TimeoutException(f"{datetime.now()}: Unable to find the book button")
+
 
 
 def book_session(session_string: str, booking_time: float):
@@ -130,4 +138,4 @@ def book_session(session_string: str, booking_time: float):
         complete_button.click()
 
 # if __name__ == "__main__":
-#     book_session("Fri 28/2 12", 1740513261.2039702)
+#     book_session("Sun 2/3 12", 1740657600.0)
