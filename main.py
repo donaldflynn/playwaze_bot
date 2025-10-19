@@ -6,6 +6,25 @@ from datetime import datetime, timedelta
 from scheduler import Scheduler, Job, JobEnum
 from tinydb import TinyDB
 from variables import TINY_DB_PATH
+import logging
+import os
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
+level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=level,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
+# keep noisy deps quiet even on DEBUG
+logging.getLogger("selenium").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
+
 
 class Process:
     def __init__(self, db):
@@ -31,7 +50,7 @@ class Process:
                 send_reply_to_thread(f"Session planned to be booked at {schedule_time}", thread)
 
         except ValueError as e:
-            print(f"Failed to handle email: {e}")
+            logger.ERROR(f"Failed to handle email: {e}")
             send_reply_to_thread(f"Failure: {e}", thread)
             pass
 

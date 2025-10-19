@@ -3,6 +3,9 @@ from typing import Optional
 import base64
 from dataclasses import dataclass
 from run_gmail_auth import get_gmail_auth
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Thread():
@@ -38,7 +41,6 @@ def get_unread_email_thread() -> Optional[Thread]:
   messages = results.get('messages', [])
 
   if not messages:
-    print('No new messages.')
     return
 
   message_id = messages[0]['id']  
@@ -57,7 +59,7 @@ def get_unread_email_thread() -> Optional[Thread]:
 
   # Mark the message as read
   service.users().messages().modify(userId='me', id=message_id, body={'removeLabelIds': ['UNREAD']}).execute()
-  print(f"Found new thread: {thread.subject}")
+  logger.INFO(f"Found new thread: {thread.subject}")
 
   return thread
 
@@ -69,11 +71,11 @@ def _send_email(encoded_body) -> str:
   # Send the message
   sent_message = service.users().messages().send(userId="me", body=encoded_body).execute()
   sent_message_id = sent_message['id']
-  print("Sending email..")
+  logger.INFO(f"Sending email {encoded_body['raw']} with ID: {sent_message_id}")
 
   # Retrieve the sent message to get the Message-ID header
   full_message = service.users().messages().get(userId="me", id=sent_message_id, format="metadata").execute()
-  print(full_message['payload']['headers'])
+  logger.INFO(full_message['payload']['headers'])
 
   headers = {header['name']: header['value'] for header in full_message['payload']['headers']}
   return headers.get('Message-Id')

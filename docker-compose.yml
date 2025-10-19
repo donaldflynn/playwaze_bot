@@ -20,6 +20,7 @@ services:
     environment:
       - WEBDRIVER_URL=http://firefox:4444/wd/hub  # Connect to the standalone Firefox WebDriver
       - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=DEBUG
     depends_on:
       - firefox
     volumes:
