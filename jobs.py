@@ -1,9 +1,7 @@
 from selenium_scripts import book_session
-from gmail import send_reply_to_thread, Thread
-from variables import TINY_DB_PATH
-from tinydb import TinyDB
 import logging
 import asyncio
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +20,7 @@ async def scheduled_booking_task(context):
     job_data = context.job.data  # Retrieve data passed to the job
     chat_id = job_data["chat_id"]
     session_id = job_data["session_id"]
-    booking_time = job_data["booking_time"]
+    booking_time = datetime.fromtimestamp(job_data["booking_timestamp"])
 
     logger.info(f"Running scheduled booking task for session {session_id} at {booking_time}")
 

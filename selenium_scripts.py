@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 
 HUB_URL = 'http://firefox:4444/wd/hub'
 
+_TITLE_RE = re.compile(
+    r'^(?P<dow>[A-Za-z]{3})\s+(?P<day>\d{1,2})/(?P<month>\d{1,2})\s+'
+    r'(?P<start>\d{3,4})-(?P<end>\d{3,4})'
+)
+
 def _xpath_literal(s: str) -> str:
     if "'" not in s:
         return f"'{s}'"
@@ -73,7 +78,25 @@ def _playwaze_login(driver):
     logger.info("Submitting login form")
     continue_button.click()
 
-def _get_session_id_from_string(driver, session_string: str, timeout=5):
+def _parse_title_start_dt(title: str) -> datetime:
+    """
+    Parse titles like: 'Fri 24/10 1230-1400, 4 courts (Acer)'
+    Returns a timezone-aware datetime in Europe/London for the start time in the current year.
+    """
+    m = _TITLE_RE.search(title.strip())
+    if not m:
+        raise ValueError(f"Could not parse start time from title: {title!r}")
+
+    day = int(m.group("day"))
+    month = int(m.group("month"))
+    start = m.group("start").zfill(4)  # e.g. '930' -> '0930'
+    hour = int(start[:2])
+    minute = int(start[2:])
+    year = datetime.now().year
+
+    return datetime(year, month, day, hour, minute)
+
+def _get_session_id_and_time_from_string(driver, session_string: str, timeout=5):
     driver.get("https://www.playwaze.com/oxford-university-badminton-club/e5vt8osgi3erh/Community-Details")
     frag = _xpath_literal(session_string)
     xpath = (
@@ -81,52 +104,60 @@ def _get_session_id_from_string(driver, session_string: str, timeout=5):
         f'[.//div[contains(@class,"marketplace-result-details-title")]/div[1]'
         f'[contains(normalize-space(.), {frag})]]'
     )
-    els = WebDriverWait(driver, timeout).until(
-        lambda d: d.find_elements(By.XPATH, xpath)
-    )
-    if len(els) == 1:
-        return _extract_id(els[0])
+
+    els = WebDriverWait(driver, timeout).until(lambda d: d.find_elements(By.XPATH, xpath))
+
     if not els:
         raise ValueError("No title contained the fragment")
-    return [
-        (
-            els[i].find_element(By.CSS_SELECTOR, ".marketplace-result-details-title > div:nth-child(1)")
-            .text.strip(),
-            _extract_id(els[i])
-        )
-        for i in range(len(els))
-    ]
 
-def _fetch_session_start_time(driver, session_id: str, timeout = 15):
-    logger.info("Fetching start time for session string: %s", session_id)
-    driver.get(f"https://www.playwaze.com/discover/result?item=PhysicalEvents/{session_id}")
-    logger.debug("Locating time container div")
+    # Single match → return (session_id, start_dt)
+    if len(els) == 1:
+        title_el = els[0].find_element(By.CSS_SELECTOR, ".marketplace-result-details-title > div:nth-child(1)")
+        title = title_el.text.strip()
+        session_id = _extract_id(els[0])
+        start_dt = _parse_title_start_dt(title)
+        return session_id, start_dt
 
-    el = WebDriverWait(driver, timeout).until(
-        EC.presence_of_element_located((
-            By.XPATH,
-            '//div[contains(@class,"session-details")]//div[contains(@class,"session-detail")][1]/div[2]'
-        ))
-    )
-    text = el.text.strip()
-    # Find the "Friday, October 24, 12:30" part
-    m = re.search(r'([A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{1,2}:\d{2})', text)
-    if not m:
-        raise ValueError(f"Could not parse start time from: {text!r}")
+    # Multiple matches → return list of (title, session_id, start_dt)
+    out = []
+    for el in els:
+        title_el = el.find_element(By.CSS_SELECTOR, ".marketplace-result-details-title > div:nth-child(1)")
+        title = title_el.text.strip()
+        session_id = _extract_id(el)
+        start_dt = _parse_title_start_dt(title)
+        out.append((title, session_id, start_dt))
+    return out
 
-    start_str = m.group(1)
-    year = datetime.now().year
-    dt = datetime.strptime(f"{start_str} {year}", "%A, %B %d, %H:%M %Y")
-    return dt
+
+# def _fetch_session_start_time(driver, session_id: str, timeout = 15):
+#     logger.info("Fetching start time for session string: %s", session_id)
+#     driver.get(f"https://www.playwaze.com/discover/result?item=PhysicalEvents/{session_id}")
+#     logger.debug("Locating time container div")
+
+#     el = WebDriverWait(driver, timeout).until(
+#         EC.presence_of_element_located((
+#             By.XPATH,
+#             '//div[contains(@class,"session-details")]//div[contains(@class,"session-detail")][1]/div[2]'
+#         ))
+#     )
+#     text = el.text.strip()
+#     # Find the "Friday, October 24, 12:30" part
+#     m = re.search(r'([A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{1,2}:\d{2})', text)
+#     if not m:
+#         raise ValueError(f"Could not parse start time from: {text!r}")
+
+#     start_str = m.group(1)
+#     year = datetime.now().year
+#     dt = datetime.strptime(f"{start_str} {year}", "%A, %B %d, %H:%M %Y")
+#     return dt
         
 def get_session_id_and_date(session_string: str, use_chrome=False):
     logger.info("Getting session ID and date for session string: %s", session_string)
     with FirefoxDriver() if not use_chrome else webdriver.Chrome() as driver:
         _playwaze_login(driver)
-        session_id = _get_session_id_from_string(driver, session_string)
+        session_id, start_datetime = _get_session_id_and_time_from_string(driver, session_string)
         if session_id is None or (isinstance(session_id, list) and len(session_id) != 1):
             raise ValueError(f"Could not uniquely identify session for string: {session_string!r}")
-        start_datetime = _fetch_session_start_time(driver, session_id)
         return session_id, start_datetime
 
 
@@ -150,6 +181,15 @@ def book_session(session_id: str, booking_time: float, use_chrome = False):
         complete_button = wait.until(EC.element_to_be_clickable((By.ID, "session-book")))
         complete_button.click()
         logger.info("Booking flow submitted")
+        wait.until(EC.presence_of_element_located((
+            By.XPATH,
+            "//div[contains(@class,'form-page-content')]"
+            "//div[contains(@class,'booking-header')][contains(translate(normalize-space(.),"
+            " 'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'success')]"
+        )))
+
+
+
 
 if __name__ == "__main__":
     print(get_session_id_and_date("Fri 24/10 1230", use_chrome=True))

@@ -4,6 +4,10 @@ from datetime import datetime
 from dataclasses import dataclass
 from jobs import scheduled_booking_task
 from variables import TINY_DB_PATH
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class JobEnum(Enum):
@@ -18,9 +22,11 @@ class Job:
     job_enum: JobEnum
     time: datetime
     data: dict[str, any]
+    job_id: Optional[int] = None
 
     def to_dict(self):
         return {
+            "job_id": self.job_id,
             "job_enum": self.job_enum.value,
             "time": self.time.timestamp(),
             "data": self.data,
@@ -29,6 +35,7 @@ class Job:
     @staticmethod
     def from_dict(dict):
         return Job(
+            job_id=dict.get('job_id'),
             job_enum=JobEnum(dict['job_enum']),
             time=datetime.fromtimestamp(dict['time']),
             data=dict['data']
@@ -52,25 +59,28 @@ class Scheduler:
             # Remove job from database after execution
             db = TinyDB(TINY_DB_PATH)
             jobs_table = db.table('jobs')
-            JobsData = Query()
-            jobs_table.remove((JobsData.job_enum == job_enum.value) & (JobsData.time == context.job.next_t.run_time.timestamp()))
+            jobs_table.remove(doc_ids=[context.job.data["job_id"]])
     
     def schedule_job(self, job: Job):
         if job.time < datetime.now():
             raise ValueError("Cannot schedule job in the past")
-        self.jobs_table.insert(job.to_dict())
+        
+        logger.info(f"Scheduling job {job.job_enum} at {job.time}")
+        job_id = self.jobs_table.insert(job.to_dict())
         self.job_queue.run_once(
             self.job_queue_executer,
             (job.time - datetime.now()).total_seconds(),
-            data={**job.data, "job_enum": job.job_enum.value}
+            data={**job.data, "job_enum": job.job_enum.value, "job_id": job_id}
         )
     
     def load_jobs_from_database(self):
         jobs_list = self.jobs_table.all()
+        logger.info(f"Loading {len(jobs_list)} jobs from database")
         for job_dict in jobs_list:
+            job_id = job_dict.doc_id
             current_job = Job.from_dict(job_dict)
             self.job_queue.run_once(
                 self.job_queue_executer,
                 (current_job.time - datetime.now()).total_seconds(),
-                data={**current_job.data, "job_enum": current_job.job_enum.value}
+                data={**current_job.data, "job_enum": current_job.job_enum.value, "job_id": job_id}
             )
