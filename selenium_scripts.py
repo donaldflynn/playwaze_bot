@@ -6,7 +6,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
-from selenium.common.exceptions import TimeoutException
+from urllib.parse import urlparse, parse_qs
+from zoneinfo import ZoneInfo
 
 from datetime import datetime
 import re
@@ -15,6 +16,22 @@ import logging
 logger = logging.getLogger(__name__)
 
 HUB_URL = 'http://firefox:4444/wd/hub'
+
+def _xpath_literal(s: str) -> str:
+    if "'" not in s:
+        return f"'{s}'"
+    if '"' not in s:
+        return f'"{s}"'
+    parts = s.split("'")
+    return "concat(" + ", \"'\", ".join("'" + p + "'" for p in parts) + ")"
+
+def _extract_id(a):
+    data_id = a.get_attribute("data-id")
+    if data_id:
+        return data_id.split("/")[-1]
+    href = a.get_attribute("href") or ""
+    event_id = parse_qs(urlparse(href).query).get("eventId", [None])[0]
+    return event_id.split("/")[-1] if event_id else None
 
 class FirefoxDriver:
     def __init__(self):
@@ -57,119 +74,68 @@ def _playwaze_login(driver):
     logger.info("Submitting login form")
     continue_button.click()
 
-def _go_to_session_from_string(driver, session_string):
-    logger.info("Opening community details page to locate session: %s", session_string)
-    # Go to sessions
+def _get_session_id_from_string(driver, session_string: str, timeout=5):
     driver.get("https://www.playwaze.com/oxford-university-badminton-club/e5vt8osgi3erh/Community-Details")
+    frag = _xpath_literal(session_string)
+    xpath = (
+        f'//a[contains(@class,"marketplace-result") and @data-type="PhysicalActivity"]'
+        f'[.//div[contains(@class,"marketplace-result-details-title")]/div[1]'
+        f'[contains(normalize-space(.), {frag})]]'
+    )
+    els = WebDriverWait(driver, timeout).until(
+        lambda d: d.find_elements(By.XPATH, xpath)
+    )
+    if len(els) == 1:
+        return _extract_id(els[0])
+    if not els:
+        raise ValueError("No title contained the fragment")
+    return [
+        (
+            els[i].find_element(By.CSS_SELECTOR, ".marketplace-result-details-title > div:nth-child(1)")
+            .text.strip(),
+            _extract_id(els[i])
+        )
+        for i in range(len(els))
+    ]
 
-    # Filter to clubnight only
-    logger.debug("Clicking marketplace activity filter")
-    marketplace_div = driver.find_element(By.XPATH, "//div[@class='marketplace-filter-type' and @data-type='activity']")
-    marketplace_div.click()
+def _fetch_session_start_time(driver, session_id: str, timeout = 15):
+    logger.info("Fetching start time for session string: %s", session_id)
+    driver.get(f"https://www.playwaze.com/discover/result?item=PhysicalEvents/{session_id}")
+    logger.debug("Locating time container div")
 
-    logger.info("Searching for matching session card")
-    _look_for_and_click_matching_session(driver, session_string)
+    el = WebDriverWait(driver, timeout).until(
+        EC.presence_of_element_located((
+            By.XPATH,
+            '//div[contains(@class,"session-details")]//div[contains(@class,"session-detail")][1]/div[2]'
+        ))
+    )
+    text = el.text.strip()
+    # Find the "Friday, October 24, 12:30" part
+    m = re.search(r'([A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{1,2}:\d{2})', text)
+    if not m:
+        raise ValueError(f"Could not parse start time from: {text!r}")
 
-def _look_for_and_click_matching_session(driver, session_string):
-    logger.info("Looking for session matching: %s", session_string)
-    # The page may take a while to load. Look for up to NUM_ATTEMPTS seconds before giving up.
-    NUM_ATTEMPTS = 10
-    for i in range(NUM_ATTEMPTS):
-        try:
-            logger.debug("Attempt %d/%d: locating session title elements", i + 1, NUM_ATTEMPTS)
-            sessions = driver.find_elements(By.CLASS_NAME, "marketplace-result-details-title")
-            texts = [s.text for s in sessions]
-            logger.debug("Found %d session elements: %s", len(sessions), texts)
-            matching_elements = [s for s in sessions if session_string in s.text]
-            logger.debug("Matching elements count: %d", len(matching_elements))
-            if len(matching_elements) != 1:
-                time.sleep(1)
-                continue
-            logger.info("Clicking matched session: %s", matching_elements[0].text)
-            matching_elements[0].click()
-            return
-        except Exception as e:
-            logger.debug("Error while scanning sessions on attempt %d: %s", i + 1, e, exc_info=True)
-            pass
-    try:
-        # Will fail because matching_elements may be undefined if every try raised before assignment
-        logger.error("Failed to find single matching session for '%s'.", session_string)
-        raise ValueError(f"Expected single session matching {session_string}. Found {[e.text for e in matching_elements]}")
-    except NameError:
-        logger.error("Failed to find single matching session for '%s' (no elements captured).", session_string)
-        raise ValueError(f"Expected single session matching {session_string}. Found []")
-
-def fetch_session_start_time(session_string: str):
-    logger.info("Fetching start time for session string: %s", session_string)
-    with FirefoxDriver() as driver:
+    start_str = m.group(1)
+    year = datetime.now().year
+    dt = datetime.strptime(f"{start_str} {year}", "%A, %B %d, %H:%M %Y")
+    return dt
+        
+def get_session_id_and_date(session_string: str, use_chrome=False):
+    logger.info("Getting session ID and date for session string: %s", session_string)
+    with FirefoxDriver() if not use_chrome else webdriver.Chrome() as driver:
         _playwaze_login(driver)
-        _go_to_session_from_string(driver, session_string)
-        logger.debug("Locating time container div")
-        time_div = driver.find_element(By.XPATH, "//i[@class='far fa-calendar-alt']/ancestor::div")
-        # Get the text inside the div
-        time_text = time_div.text
-        logger.info("Raw time text: %s", time_text)
+        session_id = _get_session_id_from_string(driver, session_string)
+        start_datetime = _fetch_session_start_time(driver, session_id)
+        return session_id, start_datetime
 
-        # Extract the date and start time using regular expressions
-        date_match = re.search(r"(\d{2}/\d{2}/\d{4})", time_text)  # Matches the date in DD/MM/YYYY format
-        start_time_match = re.search(r"(\d{2}:\d{2}) -", time_text)  # Matches the start time in HH:MM format
 
-        # Check if both date and start time are found
-        if date_match and start_time_match:
-            date_str = date_match.group(1)  # Extract the date as a string
-            start_time_str = start_time_match.group(1)  # Extract the start time as a string
-            logger.info("Parsed date: %s, start time: %s", date_str, start_time_str)
-
-            # Combine the date and start time into a single string
-            full_datetime_str = date_str + " " + start_time_str  # e.g., "08/11/2024 12:30"
-            logger.debug("Combined datetime string: %s", full_datetime_str)
-
-            # Convert the combined string into a datetime object
-            start_datetime = datetime.strptime(full_datetime_str, "%d/%m/%Y %H:%M")
-            print("Start Time (as datetime object):", start_datetime)
-            logger.info("Start datetime parsed: %s", start_datetime.isoformat())
-            return start_datetime
-        else:
-            logger.error("Unable to parse date/time from text")
-            raise ValueError("Error finding date of session")
-
-def _get_book_button(driver, booking_time):
-    logger.info("Preparing to locate 'Book' button with booking_time epoch: %s", booking_time)
-    wait_time = max(min(booking_time + 0.5 - time.time(), 120), 0)
-    logger.info("Computed wait_time before attempt: %.3f seconds", wait_time)
-    time.sleep(wait_time)
-    if wait_time > 0:
-        logger.debug("Refreshing page after wait")
-        driver.refresh()
-    for attempt in range(5):
-        try:
-            logger.debug("Attempt %d/5 to locate 'Book' button", attempt + 1)
-            button = WebDriverWait(driver, 3).until(EC.presence_of_element_located(
-                (By.XPATH, "//button[@id='attendButtona' and text()='Book']")
-            ))
-            logger.info("'Book' button found")
-            return button
-        except TimeoutException:
-            logger.warning("Timeout locating 'Book' button on attempt %d. Refreshing.", attempt + 1)
-            driver.refresh()
-    logger.error("Unable to find the 'Book' button after retries")
-    raise TimeoutException(f"{datetime.now()}: Unable to find the book button")
-
-def book_session(session_string: str, booking_time: float):
-    logger.info("Starting booking flow. session_string='%s', booking_time=%s", session_string, booking_time)
-    with FirefoxDriver() as driver:
-    # with webdriver.Chrome() as driver:
-
+def book_session(session_id: str, booking_time: float, use_chrome = False):
+    logger.info("Starting booking flow. session_string='%s', booking_time=%s", session_id, booking_time)
+    with FirefoxDriver() if not use_chrome else webdriver.Chrome() as driver:
         _playwaze_login(driver)
-        _go_to_session_from_string(driver, session_string)
+        wait = WebDriverWait(driver, 15)
 
-        logger.debug("Initializing short WebDriverWait for button interactions")
-        wait = WebDriverWait(driver, 5)
-
-        logger.info("Waiting for 'Book' button aligned with booking_time")
-        book_button = _get_book_button(driver, booking_time)
-        logger.info("Clicking 'Book' button via JS to avoid intercept issues")
-        driver.execute_script("arguments[0].click();", book_button)
+        driver.get(f"https://playwaze.com/Book?p=PhysicalEvents/{session_id}")
 
         logger.info("Waiting for and clicking 'Continue' (dependant-booking) button")
         continue_button = wait.until(EC.element_to_be_clickable((By.ID, "dependant-booking")))
@@ -183,5 +149,7 @@ def book_session(session_string: str, booking_time: float):
         complete_button = wait.until(EC.element_to_be_clickable((By.ID, "session-book")))
         complete_button.click()
         logger.info("Booking flow submitted")
-# if __name__ == "__main__":
-#     book_session("Sun 2/3 12", 1740657600.0)
+
+if __name__ == "__main__":
+    print(get_session_id_and_date("Fri 24/10 1230", use_chrome=True))
+    # book_session("84034-B", 1740657600.0, use_chrome=True)
