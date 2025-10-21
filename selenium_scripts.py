@@ -7,7 +7,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from urllib.parse import urlparse, parse_qs
-from zoneinfo import ZoneInfo
 
 from datetime import datetime
 import re
@@ -125,6 +124,8 @@ def get_session_id_and_date(session_string: str, use_chrome=False):
     with FirefoxDriver() if not use_chrome else webdriver.Chrome() as driver:
         _playwaze_login(driver)
         session_id = _get_session_id_from_string(driver, session_string)
+        if session_id is None or (isinstance(session_id, list) and len(session_id) != 1):
+            raise ValueError(f"Could not uniquely identify session for string: {session_string!r}")
         start_datetime = _fetch_session_start_time(driver, session_id)
         return session_id, start_datetime
 
