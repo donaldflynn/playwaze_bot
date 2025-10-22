@@ -16,7 +16,7 @@ async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.args:  # Check if there's any argument
             book_string = " ".join(context.args)  # Combine arguments into one string
             # Call the function with the book_string
-            response = await handle_book_string(update, context.application.scheduler, book_string)
+            response = await handle_book_string(update, context.application.bot_data['scheduler'], book_string)
             if response is not None:
                 await update.message.reply_text(response)
         else:
@@ -26,14 +26,14 @@ async def handle_book_string(update: Update, scheduler: Scheduler, book_string: 
     # You can add whatever logic you want here based on the book_string
     logger.info(f"Handling the string: {book_string}")
     try:
-        session_id, start_time = await asyncio.to_thread(get_session_id_and_date, book_string, use_chrome=True)
+        session_id, start_time = await asyncio.to_thread(get_session_id_and_date, book_string)
         await update.message.reply_text(f"Extracted session ID: {session_id} and start time: {start_time}")
 
         booking_time = (start_time - timedelta(days=3))
         job_time = booking_time - timedelta(seconds=20) 
         if (booking_time - datetime.now()).total_seconds() <= 0:
             await update.message.reply_text("Booking time has already passed! Trying to book now...")
-            await asyncio.to_thread(book_session, session_id, booking_time, use_chrome=True)
+            await asyncio.to_thread(book_session, session_id, booking_time)
             await update.message.reply_text(f"Booking done for session {session_id} at {booking_time}")
             return
         

@@ -20,7 +20,7 @@ if __name__ == "__main__":
         jobs_table=TinyDB(TINY_DB_PATH).table('jobs'),
         job_queue=application.job_queue
     )
-    application.scheduler = scheduler
+    application.bot_data["scheduler"] = scheduler 
     start_handler = CommandHandler('book', book)
     application.add_handler(start_handler)
     application.run_polling()

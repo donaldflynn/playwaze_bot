@@ -26,7 +26,7 @@ async def scheduled_booking_task(context):
 
     try:
         # Run the blocking book_session function in a thread to avoid blocking event loop
-        result = await asyncio.to_thread(book_session, session_id, booking_time, use_chrome=True)
+        result = await asyncio.to_thread(book_session, session_id, booking_time)
         await context.bot.send_message(chat_id=chat_id, text=f"Booking done for session {session_id} at {booking_time}")
     except Exception as e:
         logger.error(f"Error running scheduled booking: {e}")
