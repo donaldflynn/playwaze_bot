@@ -57,8 +57,7 @@ class Scheduler:
             await func(context)
         finally:
             # Remove job from database after execution
-            db = TinyDB(TINY_DB_PATH)
-            jobs_table = db.table('jobs')
+            jobs_table = context.application.bot_data['scheduler'].jobs_table
             jobs_table.remove(doc_ids=[context.job.data["job_id"]])
     
     def schedule_job(self, job: Job):
