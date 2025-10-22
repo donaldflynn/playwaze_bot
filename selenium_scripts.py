@@ -83,7 +83,6 @@ def _playwaze_login(driver):
 def _parse_title_start_dt(title: str) -> datetime:
     """
     Parse titles like: 'Fri 24/10 1230-1400, 4 courts (Acer)'
-    Returns a timezone-aware datetime in Europe/London for the start time in the current year.
     """
     m = _TITLE_RE.search(title.strip())
     if not m:
@@ -107,10 +106,11 @@ def _get_session_id_and_time_from_string(driver, session_string: str, timeout=5)
         f'[contains(normalize-space(.), {frag})]]'
     )
 
-    els = WebDriverWait(driver, timeout).until(lambda d: d.find_elements(By.XPATH, xpath))
-
-    if not els:
-        raise ValueError("No title contained the fragment")
+    try:
+        els = WebDriverWait(driver, timeout).until(lambda d: d.find_elements(By.XPATH, xpath))
+    except TimeoutException:
+        raise ValueError("Unable to find matching sessions")
+        
 
     # Single match → return (session_id, start_dt)
     if len(els) == 1:

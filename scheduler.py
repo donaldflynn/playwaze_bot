@@ -40,6 +40,7 @@ class Job:
         )
 
 class Scheduler:
+    """Scheduler to manage jobs using a job queue and a database."""
     def __init__(self, jobs_table, job_queue):
         self.jobs_table = jobs_table
         self.job_queue = job_queue
