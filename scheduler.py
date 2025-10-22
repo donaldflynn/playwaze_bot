@@ -1,9 +1,7 @@
-from tinydb import Query, TinyDB
 from enum import Enum
 from datetime import datetime
 from dataclasses import dataclass
 from jobs import scheduled_booking_task
-from variables import TINY_DB_PATH
 import logging
 from typing import Optional
 

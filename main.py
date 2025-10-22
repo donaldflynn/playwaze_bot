@@ -5,10 +5,11 @@ from selenium_scripts import get_session_id_and_date, book_session
 from telegram import Update
 from tinydb import TinyDB
 from scheduler import Scheduler, Job, JobEnum
-from variables import TINY_DB_PATH
 from data.credentials import user_id
 import asyncio
 from datetime import datetime, timedelta
+
+TINY_DB_PATH = "data/tinydb.json"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -38,7 +39,7 @@ async def handle_book_string(update: Update, scheduler: Scheduler, book_string: 
 
         booking_time = (start_time - timedelta(days=3))
         job_time = booking_time - timedelta(seconds=40) 
-        if (booking_time - datetime.now()).total_seconds() <= 0:
+        if (job_time - datetime.now()).total_seconds() <= 0:
             await update.message.reply_text("Booking time has already passed! Trying to book now...")
             await asyncio.to_thread(book_session, session_id, booking_time)
             await update.message.reply_text(f"Booking done for session {session_id} at {booking_time}")
