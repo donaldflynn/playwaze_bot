@@ -7,6 +7,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from urllib.parse import urlparse, parse_qs
+from selenium.common.exceptions import TimeoutException
+
 
 from datetime import datetime
 import re
@@ -127,29 +129,6 @@ def _get_session_id_and_time_from_string(driver, session_string: str, timeout=5)
         start_dt = _parse_title_start_dt(title)
         out.append((title, session_id, start_dt))
     return out
-
-
-# def _fetch_session_start_time(driver, session_id: str, timeout = 15):
-#     logger.info("Fetching start time for session string: %s", session_id)
-#     driver.get(f"https://www.playwaze.com/discover/result?item=PhysicalEvents/{session_id}")
-#     logger.debug("Locating time container div")
-
-#     el = WebDriverWait(driver, timeout).until(
-#         EC.presence_of_element_located((
-#             By.XPATH,
-#             '//div[contains(@class,"session-details")]//div[contains(@class,"session-detail")][1]/div[2]'
-#         ))
-#     )
-#     text = el.text.strip()
-#     # Find the "Friday, October 24, 12:30" part
-#     m = re.search(r'([A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{1,2}:\d{2})', text)
-#     if not m:
-#         raise ValueError(f"Could not parse start time from: {text!r}")
-
-#     start_str = m.group(1)
-#     year = datetime.now().year
-#     dt = datetime.strptime(f"{start_str} {year}", "%A, %B %d, %H:%M %Y")
-#     return dt
         
 def get_session_id_and_date(session_string: str, use_chrome=False):
     logger.info("Getting session ID and date for session string: %s", session_string)
@@ -177,20 +156,27 @@ def book_session(session_id: str, booking_time: float, use_chrome = False):
         account_div = wait.until(EC.element_to_be_clickable((By.XPATH, f"//div[@class='select-account' and @accusername='{username}']")))
         account_div.click()
 
+        delay = booking_time - datetime.now()
+        if delay.total_seconds() > 0:
+            logger.info("Waiting for booking time: %s seconds", delay.total_seconds())
+            time.sleep(delay.total_seconds())
+
         logger.info("Clicking 'Complete' booking button")
-        complete_button = wait.until(EC.element_to_be_clickable((By.ID, "session-book")))
-        complete_button.click()
-        logger.info("Booking flow submitted")
-        wait.until(EC.presence_of_element_located((
-            By.XPATH,
-            "//div[contains(@class,'form-page-content')]"
-            "//div[contains(@class,'booking-header')][contains(translate(normalize-space(.),"
-            " 'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'success')]"
-        )))
 
+        for i in (1, 2):
+            wait.until(EC.element_to_be_clickable((By.ID, "session-book"))).click()
+            logger.info("Booking flow submitted (attempt %d/2)", i)
+            try:
+                WebDriverWait(driver, 5).until(EC.presence_of_element_located((
+                            By.XPATH,
+                            "//div[contains(@class,'form-page-content')]"
+                            "//div[contains(@class,'booking-header')][contains(translate(normalize-space(.),"
+                            " 'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'success')]"
+                        )))
 
-
-
-if __name__ == "__main__":
-    print(get_session_id_and_date("Fri 24/10 1230", use_chrome=True))
-    # book_session("84034-B", 1740657600.0, use_chrome=True)
+                logger.info("Success detected")
+                break
+            except TimeoutException:
+                if i == 2:
+                    raise TimeoutException("No success after 2 attempts")
+                time.sleep(5)

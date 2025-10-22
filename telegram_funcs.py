@@ -30,7 +30,7 @@ async def handle_book_string(update: Update, scheduler: Scheduler, book_string: 
         await update.message.reply_text(f"Extracted session ID: {session_id} and start time: {start_time}")
 
         booking_time = (start_time - timedelta(days=3))
-        job_time = booking_time - timedelta(seconds=20) 
+        job_time = booking_time - timedelta(seconds=40) 
         if (booking_time - datetime.now()).total_seconds() <= 0:
             await update.message.reply_text("Booking time has already passed! Trying to book now...")
             await asyncio.to_thread(book_session, session_id, booking_time)
