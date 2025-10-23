@@ -8,8 +8,10 @@ from scheduler import Scheduler, Job, JobEnum
 from data.credentials import user_id
 import asyncio
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 TINY_DB_PATH = "data/tinydb.json"
+USE_CHROME = True
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -34,14 +36,14 @@ async def handle_book_string(update: Update, scheduler: Scheduler, book_string: 
     # You can add whatever logic you want here based on the book_string
     logger.info(f"Handling the string: {book_string}")
     try:
-        session_id, start_time = await asyncio.to_thread(get_session_id_and_date, book_string)
+        session_id, start_time = await asyncio.to_thread(get_session_id_and_date, book_string, USE_CHROME)
         await update.message.reply_text(f"Extracted session ID: {session_id} and start time: {start_time}")
 
         booking_time = (start_time - timedelta(days=3))
         job_time = booking_time - timedelta(seconds=40) 
-        if (job_time - datetime.now()).total_seconds() <= 0:
+        if (job_time - datetime.now(ZoneInfo("Europe/London"))).total_seconds() <= 0:
             await update.message.reply_text("Booking time has already passed! Trying to book now...")
-            await asyncio.to_thread(book_session, session_id, booking_time)
+            await asyncio.to_thread(book_session, session_id, booking_time, USE_CHROME)
             await update.message.reply_text(f"Booking done for session {session_id} at {booking_time}")
             return
         

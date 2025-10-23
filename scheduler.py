@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from jobs import scheduled_booking_task
 import logging
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class Job:
         return Job(
             job_id=dict.get('job_id'),
             job_enum=JobEnum(dict['job_enum']),
-            time=datetime.fromtimestamp(dict['time']),
+            time=datetime.fromtimestamp(dict['time'], tz=ZoneInfo("Europe/London")),
             data=dict['data']
         )
 
@@ -60,14 +61,14 @@ class Scheduler:
             jobs_table.remove(doc_ids=[context.job.data["job_id"]])
     
     def schedule_job(self, job: Job):
-        if job.time < datetime.now():
+        if job.time < datetime.now(ZoneInfo("Europe/London")):
             raise ValueError("Cannot schedule job in the past")
         
         logger.info(f"Scheduling job {job.job_enum} at {job.time}")
         job_id = self.jobs_table.insert(job.to_dict())
         self.job_queue.run_once(
             self.job_queue_executer,
-            (job.time - datetime.now()).total_seconds(),
+            (job.time - datetime.now(ZoneInfo("Europe/London"))).total_seconds(),
             data={**job.data, "job_enum": job.job_enum.value, "job_id": job_id}
         )
     
@@ -79,6 +80,6 @@ class Scheduler:
             current_job = Job.from_dict(job_dict)
             self.job_queue.run_once(
                 self.job_queue_executer,
-                (current_job.time - datetime.now()).total_seconds(),
+                (current_job.time - datetime.now(ZoneInfo("Europe/London"))).total_seconds(),
                 data={**current_job.data, "job_enum": current_job.job_enum.value, "job_id": job_id}
             )

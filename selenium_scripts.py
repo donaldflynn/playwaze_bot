@@ -98,8 +98,8 @@ def _parse_title_start_dt(title: str) -> datetime:
 
     tz = ZoneInfo("Europe/London")
     year = datetime.now(tz).year
-
     return datetime(year, month, day, hour, minute, tzinfo=tz)
+
 
 def _get_session_id_and_time_from_string(driver, session_string: str, timeout=5):
     driver.get("https://www.playwaze.com/oxford-university-badminton-club/e5vt8osgi3erh/Community-Details")
@@ -160,7 +160,7 @@ def book_session(session_id: str, booking_time: float, use_chrome = False):
         account_div = wait.until(EC.element_to_be_clickable((By.XPATH, f"//div[@class='select-account' and @accusername='{username}']")))
         account_div.click()
 
-        delay = booking_time - datetime.now()
+        delay = booking_time - datetime.now(ZoneInfo("Europe/London"))
         if delay.total_seconds() > 0:
             logger.info("Waiting for booking time: %s seconds", delay.total_seconds())
             time.sleep(delay.total_seconds())
@@ -178,9 +178,21 @@ def book_session(session_id: str, booking_time: float, use_chrome = False):
                             " 'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'success')]"
                         )))
 
-                logger.info("Success detected")
                 break
             except TimeoutException:
                 if i == 2:
                     raise TimeoutException("No success after 2 attempts")
                 time.sleep(5)
+        
+        logger.info("Success detected - waiting to see if actually booking is full")
+        try:
+            WebDriverWait(driver, 5).until(
+                EC.visibility_of_element_located((By.XPATH,
+                    "//div[contains(@class,'modal-dialog') "
+                    " and .//h3[contains(normalize-space(.),'Notify me when places are available')] "
+                    " and .//button[contains(@class,'participationStatusNotify')]]"
+                ))
+            )
+            raise ValueError("Booking full")
+        except TimeoutException:
+            return "Success"
