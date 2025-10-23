@@ -8,6 +8,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from urllib.parse import urlparse, parse_qs
 from selenium.common.exceptions import TimeoutException
+from zoneinfo import ZoneInfo
+
 
 
 from datetime import datetime
@@ -93,9 +95,11 @@ def _parse_title_start_dt(title: str) -> datetime:
     start = m.group("start").zfill(4)  # e.g. '930' -> '0930'
     hour = int(start[:2])
     minute = int(start[2:])
-    year = datetime.now().year
 
-    return datetime(year, month, day, hour, minute)
+    tz = ZoneInfo("Europe/London")
+    year = datetime.now(tz).year
+
+    return datetime(year, month, day, hour, minute, tzinfo=tz)
 
 def _get_session_id_and_time_from_string(driver, session_string: str, timeout=5):
     driver.get("https://www.playwaze.com/oxford-university-badminton-club/e5vt8osgi3erh/Community-Details")
