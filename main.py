@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 TINY_DB_PATH = "data/tinydb.json"
-USE_CHROME = True
+USE_CHROME = False
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
