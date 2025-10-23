@@ -3,9 +3,9 @@ networks:
     driver: bridge
 
 services:
-  firefox:
-    image: selenium/standalone-firefox:latest
-    container_name: firefox
+  chromium:
+    image: selenium/standalone-chromium:latest
+    container_name: chromium
     ports:
       - "4444:4444"  # Expose the WebDriver API
     volumes:
@@ -18,11 +18,11 @@ services:
     build: .
     container_name: app
     environment:
-      - WEBDRIVER_URL=http://firefox:4444/wd/hub  # Connect to the standalone Firefox WebDriver
+      - WEBDRIVER_URL=http://chromium:4444/wd/hub  # Connect to the standalone Firefox WebDriver
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=DEBUG
     depends_on:
-      - firefox
+      - chromium
     volumes:
       - ./data:/app/data
     networks:

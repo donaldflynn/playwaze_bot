@@ -5,10 +5,11 @@ from data.credentials import username, password
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.chrome.options import Options
 from urllib.parse import urlparse, parse_qs
 from selenium.common.exceptions import TimeoutException
 from zoneinfo import ZoneInfo
+import os
 
 
 
@@ -17,8 +18,6 @@ import re
 import logging
 
 logger = logging.getLogger(__name__)
-
-HUB_URL = 'http://firefox:4444/wd/hub'
 
 _TITLE_RE = re.compile(
     r'^(?P<dow>[A-Za-z]{3})\s+(?P<day>\d{1,2})/(?P<month>\d{1,2})\s+'
@@ -41,25 +40,25 @@ def _extract_id(a):
     event_id = parse_qs(urlparse(href).query).get("eventId", [None])[0]
     return event_id.split("/")[-1] if event_id else None
 
-class FirefoxDriver:
+class ChromiumDriver:
     def __init__(self):
-        logger.info("Initializing FirefoxDriver with Remote WebDriver at %s", HUB_URL)
         # Initialize Firefox options
         options = Options()
         options.add_argument('--headless')  # Optional: run Firefox in headless mode
-        options.add_argument('--no-sandbox')  # Optional: required for certain environments
         options.add_argument('--disable-dev-shm-usage')  # Optional: to prevent out-of-memory errors in Docker
+        logger.debug("Chromium options set: headless, disable-dev-shm-usage")
 
-        logger.debug("Firefox options set: headless, no-sandbox, disable-dev-shm-usage")
-        self.driver = webdriver.Remote(command_executor=HUB_URL, options=options)
+        hub_url = os.getenv('WEBDRIVER_URL')
+        logger.info("Connecting to WebDriver at URL: %s", hub_url)
+        self.driver = webdriver.Remote(command_executor=hub_url, options=options)
         logger.info("Remote WebDriver session started: %s", getattr(self.driver, "session_id", "unknown"))
 
     def __enter__(self):
-        logger.debug("Entering FirefoxDriver context manager")
+        logger.debug("Entering ChromiumDriver context manager")
         return self.driver
 
     def __exit__(self, type, value, tb):
-        logger.info("Exiting FirefoxDriver context manager. Quitting driver.")
+        logger.info("Exiting ChromiumDriver context manager. Quitting driver.")
         driver = self.driver.quit()
         logger.debug("Driver.quit() invoked")
 
@@ -136,7 +135,7 @@ def _get_session_id_and_time_from_string(driver, session_string: str, timeout=5)
         
 def get_session_id_and_date(session_string: str, use_chrome=False):
     logger.info("Getting session ID and date for session string: %s", session_string)
-    with FirefoxDriver() if not use_chrome else webdriver.Chrome() as driver:
+    with ChromiumDriver() if not use_chrome else webdriver.Chrome() as driver:
         _playwaze_login(driver)
         session_id, start_datetime = _get_session_id_and_time_from_string(driver, session_string)
         if session_id is None or (isinstance(session_id, list) and len(session_id) != 1):
@@ -146,7 +145,7 @@ def get_session_id_and_date(session_string: str, use_chrome=False):
 
 def book_session(session_id: str, booking_time: float, use_chrome = False):
     logger.info("Starting booking flow. session_string='%s', booking_time=%s", session_id, booking_time)
-    with FirefoxDriver() if not use_chrome else webdriver.Chrome() as driver:
+    with ChromiumDriver() if not use_chrome else webdriver.Chrome() as driver:
         _playwaze_login(driver)
         wait = WebDriverWait(driver, 15)
 
