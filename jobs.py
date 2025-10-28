@@ -20,7 +20,7 @@ async def scheduled_booking_task(context):
     job_data = context.job.data  # Retrieve data passed to the job
     chat_id = job_data["chat_id"]
     session_id = job_data["session_id"]
-    booking_time = datetime.fromtimestamp(job_data["booking_timestamp"])
+    booking_time = datetime.fromtimestamp(job_data["booking_timestamp"], tz=ZoneInfo("Europe/London"))
 
     logger.info(f"Running scheduled booking task for session {session_id} at {booking_time}")
 
