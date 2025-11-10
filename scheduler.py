@@ -67,7 +67,7 @@ class Scheduler:
         logger.info(f"Scheduling job {job.job_enum} at {job.time}")
         job_id = self.jobs_table.insert(job.to_dict())
         self.job_queue.run_once(
-            self.job_queue_executer,
+            Scheduler.job_queue_executer,
             (job.time - datetime.now(ZoneInfo("Europe/London"))).total_seconds(),
             data={**job.data, "job_enum": job.job_enum.value, "job_id": job_id}
         )

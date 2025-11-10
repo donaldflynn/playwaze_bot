@@ -2,18 +2,9 @@ from selenium_scripts import book_session
 import logging
 import asyncio
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
-
-# def book_session_job(
-#     booking_time, session_id, **kwargs
-# ):
-#     thread = Thread.from_dict(kwargs)
-#     try:
-#         book_session(session_id, booking_time)
-#         send_reply_to_thread("Success", thread)
-#     except Exception as e:
-#         send_reply_to_thread(f"Error: {repr(e)}", thread)
 
 async def scheduled_booking_task(context):
     """This function is called by job_queue at the scheduled time."""
