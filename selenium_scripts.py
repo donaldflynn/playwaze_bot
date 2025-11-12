@@ -69,12 +69,14 @@ def _playwaze_login(driver):
 
     logger.debug("Waiting for username input visibility")
     username_box = WebDriverWait(driver, 10).until(
-        EC.visibility_of_element_located((By.ID, "UserName"))
+        EC.visibility_of_element_located((By.ID, "login-username"))
     )
     logger.debug("Username input visible. Sending credentials (username only, password redacted).")
-    username_box = driver.find_element("id", "UserName")
     username_box.send_keys(username)
-    password_box = driver.find_element("id", "Password")
+    logger.debug("Waiting for password input visibility")
+    password_box = WebDriverWait(driver, 10).until(
+        EC.visibility_of_element_located((By.ID, "Password"))
+    )
     password_box.send_keys(password)
 
     continue_button = driver.find_element("class name", "PointerClass")
